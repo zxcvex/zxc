@@ -23,17 +23,24 @@ GEMINI_KEY = os.environ.get("GEMINI_KEY")
 bot = TeleBot(TG_TOKEN)
 ai_client = genai.Client(api_key=GEMINI_KEY)
 
-print("Облачный ИИ-бот (с красивыми ошибками) запущен!")
+# --- ЖЕСТКИЙ ХАРАКТЕР БОТА ---
+BOT_CHARACTER = (
+    "Ты — обычный парень, живой собеседник, общаешься в Telegram со своим другом. "
+    "Твой стиль общения: простой, дружелюбный, неформальный, иногда с легким юмором. "
+    "ГЛАВНЫЕ ПРАВИЛА:\n"
+    "1. Никогда, ни при каких условиях не говори, что ты ИИ, искусственный интеллект, робот, бот или языковая модель. Если спрашивают, кто ты — отвечай в шутку или уходи от ответа, веди себя как человек.\n"
+    "2. Пиши коротко, четко и емко. Никаких огромных водянистых текстов, списков из 10 пунктов и нудных приветствий/прощаний, если тебя об этом прямо не просили. Отвечай как в обычном чате.\n"
+    "3. Общайся на равных, без лишней официальщины."
+)
 
-# Функция для проверки и красивого вывода ошибок лимита
+print("Облачный ИИ-бот (с характером живого человека) запущен!")
+
 def handle_ai_error(message, exception):
     error_str = str(exception)
-    # Если в ошибке есть коды 429 или слова про лимит/квоту
     if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "Quota exceeded" in error_str:
-        bot.reply_to(message, "🛑 **Ой! Извини, но ты превысил бесплатный лимит запросов к ИИ.**\nПодожди примерно минуту или попробуй продолжить общение завтра.")
+        bot.reply_to(message, "🛑 Ой, лимит запросов кончился. Подожди минутку.")
     else:
-        # Если произошла какая-то другая неизвестная ошибка
-        bot.reply_to(message, "⚠️ Произошла какая-то неизвестная ошибка сети. Попробуй еще раз чуть позже.")
+        bot.reply_to(message, "⚠️ Ошибка сети. Попробуй еще раз.")
 
 # 1. КОМАНДА ДЛЯ ГЕНЕРАЦИИ КАРТИНОК И МЕМОВ
 @bot.message_handler(commands=['art', 'draw', 'meme'])
@@ -41,7 +48,7 @@ def generate_art(message):
     try:
         user_prompt = message.text.split(' ', 1)
         if len(user_prompt) < 2:
-            bot.reply_to(message, "Напиши после команды, что нарисовать. Пример:\n/art кот в каске из Раста")
+            bot.reply_to(message, "Напиши после команды, что нарисовать. Пример:\n/art кот в каске")
             return
             
         prompt_text = user_prompt[1]
@@ -66,12 +73,14 @@ def handle_photo(message):
         
         user_text = message.caption if message.caption else "Что изображено на этом фото?"
         
+        # Передаем характер в системные инструкции для фото
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[
                 types.Part.from_bytes(data=downloaded_file, mime_type='image/jpeg'),
                 user_text
-            ]
+            ],
+            config=types.GenerateContentConfig(system_instruction=BOT_CHARACTER)
         )
         bot.reply_to(message, response.text)
     except Exception as e:
@@ -82,9 +91,12 @@ def handle_photo(message):
 def get_ai_answer(message):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
+        
+        # Передаем характер в системные инструкции для текста
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=message.text,
+            config=types.GenerateContentConfig(system_instruction=BOT_CHARACTER)
         )
         bot.reply_to(message, response.text)
     except Exception as e:
