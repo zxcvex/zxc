@@ -1,10 +1,26 @@
 import os
 import urllib.parse
+import http.server
+import socketserver
+import threading
 from telebot import TeleBot
 from google import genai
 from google.genai import types
 
-# Настройки ключей из Render
+# 1. ОБМАНЫВАЕМ RENDER: Запускаем моментальный веб-сервер на чистом Python
+def run_backup_server():
+    port = int(os.environ.get("PORT", 10000))  # Беру порт, который требует Render
+    handler = http.server.SimpleHTTPRequestHandler
+    # Разрешаем повторное использование порта, чтобы не было конфликтов
+    socketserver.TCPServer.allow_reuse_address = True
+    with socketserver.TCPServer(("0.0.0.0", port), handler) as httpd:
+        print(f"Фейковый сервер успешно открыл порт {port}")
+        httpd.serve_forever()
+
+# Запускаем сервер-обманку сразу же, в первую миллисекунду, в отдельном потоке
+threading.Thread(target=run_backup_server, daemon=True).start()
+
+# 2. НАСТРОЙКИ КЛЮЧЕЙ И БОТА (берутся из настроек Render)
 TG_TOKEN = os.environ.get("TG_TOKEN")
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 
@@ -22,7 +38,7 @@ BOT_CHARACTER = (
     "4. Твой стиль: легкая дерзость, ирония, сарказм. Можешь использовать разговорные и немного грубые словечки (типа 'чё за бред', 'фигня', 'херня', 'не тупи'), но не скатывайся в жесткие маты, чтобы Telegram не забанил чат."
 )
 
-print("Облачный ИИ-бот (Дерзкий парень) успешно запущен на Cron!")
+print("Облачный ИИ-бот (Дерзкий парень) успешно запущен!")
 
 def handle_ai_error(message, exception):
     error_str = str(exception)
@@ -38,7 +54,7 @@ def generate_art(message):
         if len(user_prompt) < 2:
             bot.reply_to(message, "Не тупи, напиши после команды, чё рисовать. Пример: /art кот в каске")
             return
-        prompt_text = user_prompt
+        prompt_text = user_prompt[1]
         bot.send_chat_action(message.chat.id, 'upload_photo')
         encoded_prompt = urllib.parse.quote(prompt_text)
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
