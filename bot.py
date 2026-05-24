@@ -27,7 +27,7 @@ GEMINI_KEY = os.environ.get("GEMINI_KEY")
 bot = TeleBot(TG_TOKEN)
 ai_client = genai.Client(api_key=GEMINI_KEY)
 
-# 3. AI CHARACTER (Strict Russian response rule inside English prompt)
+# 3. AI CHARACTER
 BOT_CHARACTER = (
     "You are a regular, slightly bold, sarcastic and rude guy chatting with your friend in Russian language. "
     "Do not say you are an AI, robot, bot or large language model. Keep answers short, punchy and catchy. "
@@ -40,39 +40,39 @@ print("Bot script started")
 def handle_ai_error(message, exception):
     error_str = str(exception)
     if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "Quota exceeded" in error_str:
-        bot.reply_to(message, "Limit exceeded. Wait a minute.")
+        bot.reply_to(message, "Лимиты кончились. Подожди минуту.")
     else:
-        bot.reply_to(message, f"Network error: {error_str[:50]}")
+        bot.reply_to(message, f"Network error: {error_str[:60]}")
 
-# 4. FIX: IMAGE GENERATION WITHOUT RUSSIAN CAPTION
+# 4. IMAGE GENERATION WITH TOTAL TEXT CLEANING
 @bot.message_handler(commands=['art', 'draw', 'meme'])
 def generate_art(message):
     try:
         text_clean = message.text
         for cmd in ['/art', '/draw', '/meme']:
             text_clean = text_clean.replace(cmd, '')
-        text_clean = text_clean.strip()
+        
+        # ЖЕСТКАЯ ОЧИСТКА: Удаляем скрытые переносы строк, пробелы по бокам и управляющие символы
+        text_clean = text_clean.replace('\n', ' ').replace('\r', ' ').strip()
         
         if not text_clean:
-            bot.reply_to(message, "Write what to draw after the command.")
+            bot.reply_to(message, "Напиши после команды, чё рисовать.")
             return
             
         bot.send_chat_action(message.chat.id, 'upload_photo')
         
-        # Encode Russian prompt to safe URL format
+        # Кодируем только чистый, отфильтрованный текст
         encoded_prompt = urllib.parse.quote(text_clean)
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
-        # Download image bytes from API
+        # Скачиваем байты
         req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
             image_data = response.read()
             
-        # Convert bytes to file object
         photo_file = io.BytesIO(image_data)
         photo_file.name = 'meme.jpg'
         
-        # FIX: Send clean photo without any text caption to prevent latin-1 encoding errors
         bot.send_photo(message.chat.id, photo_file)
         
     except Exception as e:
