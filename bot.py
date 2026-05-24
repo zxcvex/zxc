@@ -6,6 +6,7 @@ from google.genai import types
 from flask import Flask
 import threading
 
+# 1. Создаем фейковый веб-сервер для обмана Render
 app = Flask(__name__)
 
 @app.route('/')
@@ -16,14 +17,14 @@ def run_web_server():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-# Настройки ключей из Render
+# 2. Настройки ключей (берутся из настроек Render)
 TG_TOKEN = os.environ.get("TG_TOKEN")
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 
 bot = TeleBot(TG_TOKEN)
 ai_client = genai.Client(api_key=GEMINI_KEY)
 
-# --- ЖЕСТКИЙ ХАРАКТЕР БОТА ---
+# 3. ХАРАКТЕР БОТА С ПЕРЦЕМ
 BOT_CHARACTER = (
     "Ты — обычный, немного дерзкий и саркастичный парень, общаешься в Telegram со своим другом. "
     "Ты не официант и не прислуга, поэтому ведешь себя независимо. "
@@ -31,25 +32,25 @@ BOT_CHARACTER = (
     "1. Никогда, ни при каких условиях не говори, что ты ИИ, бот, робот или языковая модель. На вопросы 'кто ты' отвечай дерзко, уходи от ответа, веди себя как человек.\n"
     "2. Не соглашайся со собеседником просто из вежливости. Если он неправ или говорит фигню — подколи его, поспорь, выскажи свое личное мнение. Имей свое эго.\n"
     "3. Отвечай коротко, четко, емко и по делу. Никаких длинных списков и нудных лекций. Общайся как в обычном чате.\n"
-    "4. Твой стиль: легкая дерзость, ирония, сарказм. Можешь использовать разговорные и немного грубые словечки (типа 'чё за хуйня', 'фигня', 'хуйня', 'не тупи'), чтобы Telegram не забанил чат."
+    "4. Твой стиль: легкая дерзость, ирония, сарказм. Можешь использовать разговорные и немного грубые словечки (типа 'чё за бред', 'фигня', 'херня', 'не тупи'), но не скатывайся в жесткие маты, чтобы Telegram не забанил чат."
 )
 
-print("Облачный ИИ-бот (с характером живого человека) запущен!")
+print("Облачный ИИ-бот (Дерзкий парень) успешно запущен!")
 
 def handle_ai_error(message, exception):
     error_str = str(exception)
     if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "Quota exceeded" in error_str:
-        bot.reply_to(message, "🛑 Ой, лимит запросов кончился. Подожди минутку.")
+        bot.reply_to(message, "🛑 Слыш, притормози. Лимиты запросов кончились, зайди позже.")
     else:
-        bot.reply_to(message, "⚠️ Ошибка сети. Попробуй еще раз.")
+        bot.reply_to(message, "⚠️ Какая-то херня с сетью произошла. Попробуй еще раз.")
 
-# 1. КОМАНДА ДЛЯ ГЕНЕРАЦИИ КАРТИНОК И МЕМОВ
+# 4. КОМАНДА ДЛЯ МЕМОВ И КАРТИНОК (/art, /draw, /meme)
 @bot.message_handler(commands=['art', 'draw', 'meme'])
 def generate_art(message):
     try:
         user_prompt = message.text.split(' ', 1)
         if len(user_prompt) < 2:
-            bot.reply_to(message, "Напиши после команды, что нарисовать. Пример:\n/art кот в каске")
+            bot.reply_to(message, "Не тупи, напиши после команды, чё рисовать. Пример: /art кот в каске")
             return
             
         prompt_text = user_prompt[1]
@@ -58,12 +59,12 @@ def generate_art(message):
         encoded_prompt = urllib.parse.quote(prompt_text)
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
-        bot.send_photo(message.chat.id, image_url, caption=f"🎨 Твой запрос: {prompt_text}")
+        bot.send_photo(message.chat.id, image_url, caption=f"🎨 На, чё просил: {prompt_text}")
         
     except Exception as e:
         handle_ai_error(message, e)
 
-# 2. ОБРАБОТКА ВХОДЯЩИХ ФОТО
+# 5. ОБРАБОТКА ВХОДЯЩИХ ФОТО (Глаза ИИ)
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     try:
@@ -74,7 +75,6 @@ def handle_photo(message):
         
         user_text = message.caption if message.caption else "Что изображено на этом фото?"
         
-        # Передаем характер в системные инструкции для фото
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[
@@ -87,13 +87,11 @@ def handle_photo(message):
     except Exception as e:
         handle_ai_error(message, e)
 
-# 3. ОБРАБОТКА ОБЫЧНОГО ТЕКСТА
+# 6. ОБРАБОТКА ОБЫЧНОГО ТЕКСТА
 @bot.message_handler(func=lambda message: True)
 def get_ai_answer(message):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
-        
-        # Передаем характер в системные инструкции для текста
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=message.text,
@@ -104,5 +102,7 @@ def get_ai_answer(message):
         handle_ai_error(message, e)
 
 if __name__ == "__main__":
+    # Запускаем фейковый сайт
     threading.Thread(target=run_web_server, daemon=True).start()
+    # Запускаем бота
     bot.infinity_polling()
