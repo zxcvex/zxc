@@ -18,7 +18,7 @@ def run_web_server():
 
 # Настройки бота
 TG_TOKEN = os.environ.get("TG_TOKEN")
-GEMINI_KEY = "AIzaSyAZIUorguXK7XhcSFg-QrwH8ABxXN2gO70"  # Проверь этот ключ!
+GEMINI_KEY = os.environ.get("GEMINI_KEY")  # Проверь этот ключ!
 
 bot = TeleBot(TG_TOKEN)
 ai_client = genai.Client(api_key=GEMINI_KEY)
