@@ -18,6 +18,7 @@ def run_backup_server():
         print("Backup server running")
         httpd.serve_forever()
 
+# Запускаем сервер-обманку сразу же, в первую миллисекунду, в отдельном потоке
 threading.Thread(target=run_backup_server, daemon=True).start()
 
 # 2. НАСТРОЙКИ КЛЮЧЕЙ И БОТА (берутся из настроек Render)
@@ -55,11 +56,13 @@ def generate_art(message):
             
         bot.send_chat_action(message.chat.id, 'upload_photo')
         
-        # Кодируем текст и собираем ссылку
+        # Кодируем текст (русские буквы переходят в безопасный формат)
         encoded_prompt = urllib.parse.quote(text_clean)
+        
+        # ИСПРАВЛЕНО: Вставляем строго encoded_prompt вместо старого текста
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
-        # СКАЧИВАЕМ КАРТИНКУ НА СЕРВЕР В ОБЛАКЕ
+        # Скачиваем картинку в облако
         req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
             image_data = response.read()
