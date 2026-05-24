@@ -23,15 +23,23 @@ GEMINI_KEY = os.environ.get("GEMINI_KEY")
 bot = TeleBot(TG_TOKEN)
 ai_client = genai.Client(api_key=GEMINI_KEY)
 
-print("Облачный ИИ-бот (Фото + Генерация картинок) запущен!")
+print("Облачный ИИ-бот (с красивыми ошибками) запущен!")
+
+# Функция для проверки и красивого вывода ошибок лимита
+def handle_ai_error(message, exception):
+    error_str = str(exception)
+    # Если в ошибке есть коды 429 или слова про лимит/квоту
+    if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "Quota exceeded" in error_str:
+        bot.reply_to(message, "🛑 **Ой! Извини, но ты превысил бесплатный лимит запросов к ИИ.**\nПодожди примерно минуту или попробуй продолжить общение завтра.")
+    else:
+        # Если произошла какая-то другая неизвестная ошибка
+        bot.reply_to(message, "⚠️ Произошла какая-то неизвестная ошибка сети. Попробуй еще раз чуть позже.")
 
 # 1. КОМАНДА ДЛЯ ГЕНЕРАЦИИ КАРТИНОК И МЕМОВ
 @bot.message_handler(commands=['art', 'draw', 'meme'])
 def generate_art(message):
     try:
-        # Отрезаем саму команду (например, /art ), оставляя только текст пользователя
         user_prompt = message.text.split(' ', 1)
-        
         if len(user_prompt) < 2:
             bot.reply_to(message, "Напиши после команды, что нарисовать. Пример:\n/art кот в каске из Раста")
             return
@@ -39,19 +47,15 @@ def generate_art(message):
         prompt_text = user_prompt[1]
         bot.send_chat_action(message.chat.id, 'upload_photo')
         
-        # Кодируем текст, чтобы в нем корректно передавались пробелы и русские буквы
         encoded_prompt = urllib.parse.quote(prompt_text)
-        
-        # Генерируем прямую ссылку на сгенерированную картинку через бесплатный ИИ-движок Pollinations
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
-        # Отправляем готовую картинку пользователю в Telegram
         bot.send_photo(message.chat.id, image_url, caption=f"🎨 Твой запрос: {prompt_text}")
         
     except Exception as e:
-        bot.reply_to(message, f"Ошибка при создании картинки: {str(e)}")
+        handle_ai_error(message, e)
 
-# 2. ОБРАБОТКА ВХОДЯЩИХ ФОТО (чтобы бот видел твои картинки)
+# 2. ОБРАБОТКА ВХОДЯЩИХ ФОТО
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     try:
@@ -71,7 +75,7 @@ def handle_photo(message):
         )
         bot.reply_to(message, response.text)
     except Exception as e:
-        bot.reply_to(message, f"Ошибка при обработке фото: {str(e)}")
+        handle_ai_error(message, e)
 
 # 3. ОБРАБОТКА ОБЫЧНОГО ТЕКСТА
 @bot.message_handler(func=lambda message: True)
@@ -84,7 +88,7 @@ def get_ai_answer(message):
         )
         bot.reply_to(message, response.text)
     except Exception as e:
-        bot.reply_to(message, f"Ошибка ИИ: {str(e)}")
+        handle_ai_error(message, e)
 
 if __name__ == "__main__":
     threading.Thread(target=run_web_server, daemon=True).start()
