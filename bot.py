@@ -1,5 +1,7 @@
 import os
 import urllib.parse
+import urllib.request
+import io
 import http.server
 import socketserver
 import threading
@@ -38,32 +40,38 @@ BOT_CHARACTER = (
 
 print("Bot script started")
 
-# 4. АБСОЛЮТНО НЕУБИВАЕМАЯ ГЕНЕРАЦИЯ КАРТИНОК
+# 4. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ КАРТИНОК ИЗ ПАМЯТИ СЕРВЕРА
 @bot.message_handler(commands=['art', 'draw', 'meme'])
 def generate_art(message):
     try:
-        # Просто заменяем команду в тексте на пустоту, чтобы получить чистый запрос
         text_clean = message.text
         for cmd in ['/art', '/draw', '/meme']:
             text_clean = text_clean.replace(cmd, '')
-        
         text_clean = text_clean.strip()
         
         if not text_clean:
             bot.reply_to(message, "Не тупи, напиши после команды, чё рисовать. Пример: /art кот в каске")
             return
+            
+        bot.send_chat_action(message.chat.id, 'upload_photo')
         
-        # Кодируем текст для безопасной ссылки
+        # Кодируем текст и собираем ссылку
         encoded_prompt = urllib.parse.quote(text_clean)
-        
-        # Ссылка на картинку
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
-        # Отправляем ссылку. Telegram сам развернет её в картинку
-        bot.reply_to(message, f"На, чё просил: {image_url}")
+        # СКАЧИВАЕМ КАРТИНКУ НА СЕРВЕР В ОБЛАКЕ
+        req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            image_data = response.read()
+            
+        # Превращаем байты в файл в памяти и отправляем в Telegram
+        photo_file = io.BytesIO(image_data)
+        photo_file.name = 'meme.jpg'
+        
+        bot.send_photo(message.chat.id, photo_file, caption=f"На, чё просил: {text_clean}")
         
     except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка в команде картинок: {str(e)}")
+        bot.reply_to(message, f"⚠️ Не удалось загрузить картинку: {str(e)}")
 
 # 5. ОБРАБОТКА ВХОДЯЩИХ ФОТО (Глаза ИИ)
 @bot.message_handler(content_types=['photo'])
