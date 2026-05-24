@@ -25,7 +25,7 @@ GEMINI_KEY = os.environ.get("GEMINI_KEY")
 bot = TeleBot(TG_TOKEN)
 ai_client = genai.Client(api_key=GEMINI_KEY)
 
-# 3. ХАРАКТЕР БОТА С ПЕРЦЕМ (Вернул русский язык обратно)
+# 3. ХАРАКТЕР БОТА С ПЕРЦЕМ
 BOT_CHARACTER = (
     "Ты — обычный, немного дерзкий и саркастичный парень, общаешься в Telegram со своим другом. "
     "Ты не официант и не прислуга, поэтому ведешь себя независимо. "
@@ -38,36 +38,32 @@ BOT_CHARACTER = (
 
 print("Bot script started")
 
-def handle_ai_error(message, exception):
-    error_str = str(exception)
-    if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "Quota exceeded" in error_str:
-        bot.reply_to(message, "🛑 Слыш, притормози. Лимиты запросов кончились, зайди позже.")
-    else:
-        bot.reply_to(message, f"⚠️ Какая-то херня произошла. Ошибка: {error_str[:100]}")
-
-# 4. ИСПРАВЛЕННАЯ КОМАНДА ДЛЯ МЕМОВ И КАРТИНОК (/art, /draw, /meme)
+# 4. АБСОЛЮТНО НЕУБИВАЕМАЯ ГЕНЕРАЦИЯ КАРТИНОК
 @bot.message_handler(commands=['art', 'draw', 'meme'])
 def generate_art(message):
     try:
-        user_prompt = message.text.split(' ', 1)
-        if len(user_prompt) < 2:
+        # Просто заменяем команду в тексте на пустоту, чтобы получить чистый запрос
+        text_clean = message.text
+        for cmd in ['/art', '/draw', '/meme']:
+            text_clean = text_clean.replace(cmd, '')
+        
+        text_clean = text_clean.strip()
+        
+        if not text_clean:
             bot.reply_to(message, "Не тупи, напиши после команды, чё рисовать. Пример: /art кот в каске")
             return
         
-        prompt_text = user_prompt[1]
-        bot.send_chat_action(message.chat.id, 'typing')
-        
         # Кодируем текст для безопасной ссылки
-        encoded_prompt = urllib.parse.quote(prompt_text)
+        encoded_prompt = urllib.parse.quote(text_clean)
         
-        # Генерируем ссылку на картинку
+        # Ссылка на картинку
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
-        # ИСПРАВЛЕНИЕ: Вместо отправки файла шлем ссылку, которую Telegram сам превратит в картинку в чате
+        # Отправляем ссылку. Telegram сам развернет её в картинку
         bot.reply_to(message, f"На, чё просил: {image_url}")
         
     except Exception as e:
-        handle_ai_error(message, e)
+        bot.reply_to(message, f"⚠️ Ошибка в команде картинок: {str(e)}")
 
 # 5. ОБРАБОТКА ВХОДЯЩИХ ФОТО (Глаза ИИ)
 @bot.message_handler(content_types=['photo'])
@@ -87,7 +83,7 @@ def handle_photo(message):
         )
         bot.reply_to(message, response.text)
     except Exception as e:
-        handle_ai_error(message, e)
+        bot.reply_to(message, f"⚠️ Ошибка ИИ при обработке фото: {str(e)}")
 
 # 6. ОБРАБОТКА ОБЫЧНОГО ТЕКСТА
 @bot.message_handler(func=lambda message: True)
@@ -101,7 +97,7 @@ def get_ai_answer(message):
         )
         bot.reply_to(message, response.text)
     except Exception as e:
-        handle_ai_error(message, e)
+        bot.reply_to(message, f"⚠️ Ошибка ИИ при ответе на текст: {str(e)}")
 
 if __name__ == "__main__":
     bot.infinity_polling()
