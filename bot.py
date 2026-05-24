@@ -7,69 +7,58 @@ from telebot import TeleBot
 from google import genai
 from google.genai import types
 
-# 1. ОБМАНЫВАЕМ RENDER: Запускаем моментальный веб-сервер на чистом Python
 def run_backup_server():
     port = int(os.environ.get("PORT", 10000))
     handler = http.server.SimpleHTTPRequestHandler
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("0.0.0.0", port), handler) as httpd:
-        print(f"Фейковый сервер успешно открыл порт {port}")
+        print("Backup server running")
         httpd.serve_forever()
 
-# Запускаем сервер-обманку сразу же, в первую миллисекунду, в отдельном потоке
 threading.Thread(target=run_backup_server, daemon=True).start()
 
-# 2. НАСТРОЙКИ КЛЮЧЕЙ И БОТА (берутся из настроек Render)
 TG_TOKEN = os.environ.get("TG_TOKEN")
 GEMINI_KEY = os.environ.get("GEMINI_KEY")
 
 bot = TeleBot(TG_TOKEN)
 ai_client = genai.Client(api_key=GEMINI_KEY)
 
-# 3. ХАРАКТЕР БОТА С ПЕРЦЕМ
+# Личность на английском, но с приказом отвечать по-русски (для стабильности кодировки)
 BOT_CHARACTER = (
-    "Ты — обычный, немного дерзкий и саркастичный парень, общаешься в Telegram со своим другом. "
-    "Ты не официант и не прислуга, поэтому ведешь себя независимо. "
-    "ГЛАВНЫЕ ПРАВИЛА:\n"
-    "1. Никогда, ни при каких условиях не говори, что ты ИИ, бот, робот или языковая модель. На вопросы 'кто ты' отвечай дерзко, уходи от ответа, веди себя как человек.\n"
-    "2. Не соглашайся со собеседником просто из вежливости. Если он неправ или говорит фигню — подколи его, поспорь, выскажи свое личное мнение. Имей свое эго.\n"
-    "3. Отвечай коротко, четко, емко и по делу. Никаких длинных списков и нудных лекций. Общайся как вобычном чате.\n"
-    "4. Твой стиль: легкая дерзость, ирония, сарказм. Можешь использовать разговорные и немного грубые словечки (типа 'чё за бред', 'фигня', 'херня', 'не тупи'), но не скатывайся в жесткие маты, чтобы Telegram не забанил чат."
+    "You are a regular, slightly bold and sarcastic guy chatting with your friend in Russian. "
+    "Do not say you are an AI, robot or bot. Keep answers short and catchy. "
+    "Do not agree out of politeness, joke and argue if needed. Use simple words. "
+    "ALWAYS RESPOND IN RUSSIAN LANGUAGE."
 )
 
-print("Облачный ИИ-бот (Дерзкий парень) успешно запущен!")
+print("Bot script started")
 
 def handle_ai_error(message, exception):
     error_str = str(exception)
     if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "Quota exceeded" in error_str:
-        bot.reply_to(message, "🛑 Слыш, притормози. Лимиты запросов кончились, зайди позже.")
+        bot.reply_to(message, "Притормози, лимиты кончились. Зайди позже.")
     else:
-        bot.reply_to(message, "⚠️ Какая-то херня с сетью произошла. Попробуй еще раз.")
+        # Выводим реальный текст ошибки, чтобы наконец увидеть, ЧТО именно ломается!
+        bot.reply_to(message, f"Ошибка сети или кода: {error_str[:100]}")
 
-# 4. КОМАНДА ДЛЯ МЕМОВ И КАРТИНОК (/art, /draw, /meme)
 @bot.message_handler(commands=['art', 'draw', 'meme'])
 def generate_art(message):
     try:
         user_prompt = message.text.split(' ', 1)
         if len(user_prompt) < 2:
-            bot.reply_to(message, "Не тупи, напиши после команды, чё рисовать. Пример: /art кот в каске")
+            bot.reply_to(message, "Напиши после команды, чё нарисовать.")
             return
         
-        # Вот тут теперь всё чётко забирает именно текст запроса
         prompt_text = user_prompt[1]
         bot.send_chat_action(message.chat.id, 'upload_photo')
         
-        # Кодируем текст для ссылки
         encoded_prompt = urllib.parse.quote(prompt_text)
-        
-        # Ссылка теперь идеальная, с image. и /p/
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
         bot.send_photo(message.chat.id, image_url, caption=f"На, чё просил: {prompt_text}")
     except Exception as e:
         handle_ai_error(message, e)
 
-# 5. ОБРАБОТКА ВХОДЯЩИХ ФОТО (Глаза ИИ)
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     try:
@@ -78,7 +67,7 @@ def handle_photo(message):
         file_info = bot.get_file(raw_file.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        user_text = message.caption if message.caption else "Что изображено на этом фото?"
+        user_text = message.caption if message.caption else "What is on this photo?"
         
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
@@ -89,7 +78,6 @@ def handle_photo(message):
     except Exception as e:
         handle_ai_error(message, e)
 
-# 6. ОБРАБОТКА ОБЫЧНОГО ТЕКСТА
 @bot.message_handler(func=lambda message: True)
 def get_ai_answer(message):
     try:
