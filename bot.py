@@ -59,7 +59,7 @@ def generate_art(message):
         # Кодируем текст (русские буквы переходят в безопасный формат)
         encoded_prompt = urllib.parse.quote(text_clean)
         
-        # ИСПРАВЛЕНО: Вставляем строго encoded_prompt вместо старого текста
+        # Вставляем строго encoded_prompt вместо старого текста
         image_url = f"https://pollinations.ai{encoded_prompt}?width=1024&height=1024&nologo=true"
         
         # Скачиваем картинку в облако
